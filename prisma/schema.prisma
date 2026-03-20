@@ -145,10 +145,11 @@ model ResourceFile {
 }
 
 model Tag {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  category    String?
-  createdAt   DateTime @default(now())
+  id           String        @id @default(cuid())
+  name         String        @unique
+  category     String?
+  createdAt    DateTime      @default(now())
+  resourceTags ResourceTag[]
 
   @@map("tags")
 }
