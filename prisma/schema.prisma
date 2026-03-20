@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum Visibility {
+  PRIVATE
+  INTERNAL
+  PUBLIC
+}
+
+enum ResourceType {
+  MODEL
+  DATASET
+}
+
+model User {
+  id               String                 @id @default(cuid())
+  email            String                 @unique
+  name             String
+  passwordHash     String
+  role             UserRole               @default(USER)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  ownedModels      Model[]                @relation("ModelOwner")
+  ownedDatasets    Dataset[]              @relation("DatasetOwner")
+  createdVersions  ResourceVersion[]
+  permissions      ResourcePermission[]
+
+  @@map("users")
+}
+
+model Model {
+  id               String                 @id @default(cuid())
+  slug             String                 @unique
+  name             String
+  summary          String
+  readme           String                 @db.Text
+  modelType        String
+  baseModel        String?
+  taskType         String
+  tags             String[]               @default([])
+  ownerId          String
+  ownerName        String
+  visibility       Visibility             @default(INTERNAL)
+  currentVersionId String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  owner            User                   @relation("ModelOwner", fields: [ownerId], references: [id])
+  versions         ResourceVersion[]      @relation("ModelVersions")
+  files            ResourceFile[]         @relation("ModelFiles")
+
+  @@index([name])
+  @@index([taskType])
+  @@index([ownerId])
+  @@index([visibility])
+  @@map("models")
+}
+
+model Dataset {
+  id               String                 @id @default(cuid())
+  slug             String                 @unique
+  name             String
+  summary          String
+  readme           String                 @db.Text
+  datasetType      String
+  taskType         String
+  tags             String[]               @default([])
+  source           String
+  recordCount      Int                    @default(0)
+  fileCount        Int                    @default(0)
+  sizeBytes        BigInt                 @default(0)
+  format           String
+  ownerId          String
+  ownerName        String
+  visibility       Visibility             @default(INTERNAL)
+  currentVersionId String?
+  sampleData       Json?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  owner            User                   @relation("DatasetOwner", fields: [ownerId], references: [id])
+  versions         ResourceVersion[]      @relation("DatasetVersions")
+  files            ResourceFile[]         @relation("DatasetFiles")
+
+  @@index([name])
+  @@index([datasetType])
+  @@index([taskType])
+  @@index([ownerId])
+  @@index([visibility])
+  @@map("datasets")
+}
+
+model ResourceVersion {
+  id             String       @id @default(cuid())
+  resourceType   ResourceType
+  modelId        String?
+  datasetId      String?
+  version        String
+  description    String
+  createdById    String
+  createdAt      DateTime     @default(now())
+  fileIds        String[]     @default([])
+  model          Model?       @relation("ModelVersions", fields: [modelId], references: [id])
+  dataset        Dataset?     @relation("DatasetVersions", fields: [datasetId], references: [id])
+  createdBy      User         @relation(fields: [createdById], references: [id])
+
+  @@index([resourceType, modelId])
+  @@index([resourceType, datasetId])
+  @@unique([modelId, version])
+  @@unique([datasetId, version])
+  @@map("resource_versions")
+}
+
+model ResourceFile {
+  id             String       @id @default(cuid())
+  resourceType   ResourceType
+  modelId        String?
+  datasetId      String?
+  versionId      String?
+  name           String
+  storagePath    String
+  mimeType       String
+  sizeBytes      BigInt
+  uploadedById   String
+  uploadedAt     DateTime     @default(now())
+  sourceType     String       @default("LOCAL")
+  externalUrl    String?
+  ownerName      String
+  model          Model?       @relation("ModelFiles", fields: [modelId], references: [id])
+  dataset        Dataset?     @relation("DatasetFiles", fields: [datasetId], references: [id])
+
+  @@index([resourceType, modelId])
+  @@index([resourceType, datasetId])
+  @@index([versionId])
+  @@map("resource_files")
+}
+
+model Tag {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  category     String?
+  createdAt    DateTime      @default(now())
+  resourceTags ResourceTag[]
+
+  @@map("tags")
+}
+
+model ResourceTag {
+  id           String       @id @default(cuid())
+  resourceType ResourceType
+  resourceId   String
+  tagId        String
+  createdAt    DateTime     @default(now())
+  tag          Tag          @relation(fields: [tagId], references: [id])
+
+  @@unique([resourceType, resourceId, tagId])
+  @@index([resourceType, resourceId])
+  @@map("resource_tags")
+}
+
+model ResourcePermission {
+  id           String       @id @default(cuid())
+  resourceType ResourceType
+  resourceId   String
+  userId       String
+  canRead      Boolean      @default(true)
+  canWrite     Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([resourceType, resourceId, userId])
+  @@index([resourceType, resourceId])
+  @@map("permissions")
+}
